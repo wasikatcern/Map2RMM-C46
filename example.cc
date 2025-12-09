@@ -32,9 +32,9 @@
 #include "ProMCStat.h"
 #include "ProMC.pb.h"
 
-#include "map2rmm/inc/SystemOfUnits.h"
-#include "map2rmm/inc/LParticle.h"
-#include "map2rmm/inc/CParticle.h"
+#include "map2rmm46/inc/SystemOfUnits.h"
+#include "map2rmm46/inc/LParticle.h"
+#include "map2rmm46/inc/CParticle.h"
 
 using namespace fastjet;
 
