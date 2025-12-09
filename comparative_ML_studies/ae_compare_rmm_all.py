@@ -24,14 +24,6 @@ torch.manual_seed(RANDOM_STATE)
 FULL_RMM_BKG = "out/tev13.6pp_pythia8_ttbar_2lep_data10percent.csv.gz"
 FULL_RMM_SIG = "out/pythia8_X1500GeV_SH2bbll_data100percent.csv.gz"
 
-# RMM-C20 (20D compact)
-C20_BKG = "out_C20/ttbar_10percent_C20.csv.gz"
-C20_SIG = "out_C20/SH_1500GeV_C20.csv.gz"
-
-# RMM-C45 (45D compact)
-C45_BKG = "out_C45/tt_C45.csv"
-C45_SIG = "out_C45/SH_1500_C45.csv"
-
 # RMM-C46 (frob) (46D compact)
 C46_BKG = "out_C46/tt_c46_frob_10.csv"
 C46_SIG = "out_C46/sh_1500_c46_frob.csv"
@@ -58,41 +50,6 @@ FULL_EXTRA_SAMPLES = {
     "SH 2000 GeV": "out/pythia8_X2000GeV_SH2bbll_data100percent.csv.gz",
 }
 
-# C20
-C20_EXTRA_SAMPLES = {
-    "ttbar (1%)": "out_C20/ttbar_1percent_C20.csv.gz",
-    "WZJets": "out_C20/wjet_C20.csv.gz",
-
-    "HH 500 GeV":  "out_C20/hh_500GeV_C20.csv.gz",
-    "HH 700 GeV":  "out_C20/hh_700GeV_C20.csv.gz",
-    "HH 1000 GeV": "out_C20/hh_1000GeV_C20.csv.gz",
-    "HH 1500 GeV": "out_C20/hh_1500GeV_C20.csv.gz",
-    "HH 2000 GeV": "out_C20/hh_2000GeV_C20.csv.gz",
-
-    "SH 500 GeV":  "out_C20/SH_500GeV_C20.csv.gz",
-    "SH 700 GeV":  "out_C20/SH_700GeV_C20.csv.gz",
-    "SH 1000 GeV": "out_C20/SH_1000GeV_C20.csv.gz",
-    "SH 1500 GeV": "out_C20/SH_1500GeV_C20.csv.gz",
-    "SH 2000 GeV": "out_C20/SH_2000GeV_C20.csv.gz",
-}
-
-# C45
-C45_EXTRA_SAMPLES = {
-    "ttbar (1%)": "out_C45/tt_1p_C45.csv",
-    "WZJets": "out_C45/wzjet_C45.csv",
-
-    "HH 500 GeV":  "out_C45/HH_500_C45.csv",
-    "HH 700 GeV":  "out_C45/HH_700_C45.csv",
-    "HH 1000 GeV": "out_C45/HH_1000_C45.csv",
-    "HH 1500 GeV": "out_C45/HH_1500_C45.csv",
-    "HH 2000 GeV": "out_C45/HH_2000_C45.csv",
-
-    "SH 500 GeV":  "out_C45/SH_500_C45.csv",
-    "SH 700 GeV":  "out_C45/SH_700_C45.csv",
-    "SH 1000 GeV": "out_C45/SH_1000_C45.csv",
-    "SH 1500 GeV": "out_C45/SH_1500_C45.csv",
-    "SH 2000 GeV": "out_C45/SH_2000_C45.csv",
-}
 
 # C46 (frob)
 C46_EXTRA_SAMPLES = {
@@ -144,7 +101,7 @@ def load_full_rmm_pair(bkg_path, sig_path):
 
 def load_compact_single(path, skip_cols=1):
     """
-    Generic loader for compact representations (C20, C45, C46, etc).
+    Generic loader for compact representations.
     Assumes the first column is an event index; we skip it.
     """
     df = pd.read_csv(path, compression="infer")
@@ -364,23 +321,20 @@ def compute_multi_losses(name, model, scaler, loader_single, samples_paths, devi
 
     return samples_losses
 
-
 def plot_multi_loss_distributions(all_losses_dict, out_pdf):
     """
     all_losses_dict: {
         "Full RMM": {"ttbar (1%)": losses, "WZJets": losses, ...},
-        "RMM-C20": {...},
-        ...
+        "RMM-C46": {...},
     }
+    Only "Full RMM" and "RMM-C46" are plotted here.
     """
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(10, 4))
 
-    # 2x2 grid assuming 4 representations
+    # 1x2 grid: Full RMM (left), RMM-C46 (right)
     grid_positions = {
-        "Full RMM": 221,
-        "RMM-C20": 222,
-        "RMM-C45": 223,
-        "RMM-C46": 224,
+        "Full RMM": 121,
+        "RMM-C46": 122,
     }
 
     colors = [
@@ -390,7 +344,7 @@ def plot_multi_loss_distributions(all_losses_dict, out_pdf):
 
     for rep_name, losses_dict in all_losses_dict.items():
         if rep_name not in grid_positions:
-            continue
+            continue  
         pos = grid_positions[rep_name]
         ax = plt.subplot(pos)
 
@@ -421,7 +375,6 @@ def plot_multi_loss_distributions(all_losses_dict, out_pdf):
     print(f"Saved multi-loss distributions to: {out_pdf}")
 
 
-
 # ----------------------------------------------------------------------
 # NEW: AUC vs mass for HH/SH for each representation
 # ----------------------------------------------------------------------
@@ -431,12 +384,11 @@ def compute_and_plot_auc_vs_mass(all_losses_dict, out_pdf):
     Using the already computed reconstruction losses in all_losses_dict,
     compute AUC(ttbar (1%) vs HH mX) and AUC(ttbar (1%) vs SH mX)
     for mX = 500, 700, 1000, 1500, 2000 GeV,
-    for each representation (Full RMM, C20, C45, C46),
+    for each representation (Full RMM, C46),
     and plot AUC vs mass for HH and SH in a single figure with two subplots.
     """
     mass_points = [500, 700, 1000, 1500, 2000]
-    #reps = ["Full RMM", "RMM-C20", "RMM-C45", "RMM-C46 (frob)"]
-    reps = ["Full RMM", "RMM-C45", "RMM-C46"]
+    reps = ["Full RMM", "RMM-C46"]
 
     # Store AUCs
     hh_aucs = {rep: [] for rep in reps}
@@ -497,8 +449,6 @@ def compute_and_plot_auc_vs_mass(all_losses_dict, out_pdf):
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
     colors = {
         "Full RMM": "C0",
-        #"RMM-C20": "C1",
-        "RMM-C45": "C2",
         "RMM-C46": "C3",
     }
 
@@ -564,14 +514,6 @@ def main():
     X_full_bkg, X_full_sig = load_full_rmm_pair(FULL_RMM_BKG, FULL_RMM_SIG)
     print("  Full RMM shapes:", X_full_bkg.shape, X_full_sig.shape)
 
-    print("\n=== Loading RMM-C20 (train/test) ===")
-    X_c20_bkg, X_c20_sig = load_compact_pair(C20_BKG, C20_SIG, skip_cols=1)
-    print("  C20 shapes:", X_c20_bkg.shape, X_c20_sig.shape)
-
-    print("\n=== Loading RMM-C45 (train/test) ===")
-    X_c45_bkg, X_c45_sig = load_compact_pair(C45_BKG, C45_SIG, skip_cols=1)
-    print("  C45 shapes:", X_c45_bkg.shape, X_c45_sig.shape)
-
     print("\n=== Loading RMM-C46 (frob, train/test) ===")
     X_c46_bkg, X_c46_sig = load_compact_pair(C46_BKG, C46_SIG, skip_cols=1)
     print("  C46 shapes:", X_c46_bkg.shape, X_c46_sig.shape)
@@ -585,12 +527,6 @@ def main():
 
     res_full = ae_train_and_roc(X_full_bkg, X_full_sig, "Full RMM", device=device)
     results.append(res_full)
-
-    res_c20 = ae_train_and_roc(X_c20_bkg, X_c20_sig, "RMM-C20", device=device)
-    results.append(res_c20)
-
-    res_c45 = ae_train_and_roc(X_c45_bkg, X_c45_sig, "RMM-C45", device=device)
-    results.append(res_c45)
 
     res_c46 = ae_train_and_roc(X_c46_bkg, X_c46_sig, "RMM-C46", device=device)
     results.append(res_c46)
@@ -615,8 +551,7 @@ def main():
     plt.plot([0, 1], [0, 1], "k--", alpha=0.5)
     plt.xlabel("False positive rate")
     plt.ylabel("True positive rate")
-    #plt.title("Autoencoder ROC: Full RMM vs RMM-C20/C45/C46")
-    plt.title("Autoencoder ROC: Full RMM vs RMM-C45/C46")
+    plt.title("Autoencoder ROC: Full RMM vs RMM-C46")
     plt.legend(loc="lower right", fontsize=9)
     plt.tight_layout()
     plt.savefig("out_C46/roc_compare_rmm_all_AE.pdf")
@@ -640,30 +575,6 @@ def main():
         device=device,
     )
     all_losses_dict["Full RMM"] = full_losses
-    
-    
-    # C20
-    c20_losses = compute_multi_losses(
-        "RMM-C20",
-        res_c20["model"],
-        res_c20["scaler"],
-        loader_single=lambda p: load_compact_single(p, skip_cols=1),
-        samples_paths=C20_EXTRA_SAMPLES,
-        device=device,
-    )
-    all_losses_dict["RMM-C20"] = c20_losses
-    
-
-    # C45
-    c45_losses = compute_multi_losses(
-        "RMM-C45",
-        res_c45["model"],
-        res_c45["scaler"],
-        loader_single=lambda p: load_compact_single(p, skip_cols=1),
-        samples_paths=C45_EXTRA_SAMPLES,
-        device=device,
-    )
-    all_losses_dict["RMM-C45"] = c45_losses
 
     # C46
     c46_losses = compute_multi_losses(
