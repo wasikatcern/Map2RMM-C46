@@ -178,6 +178,6 @@ https://arxiv.org/abs/1810.06669
 
 Author
 
-Original RMM was developed by S. Chekanov (ANL) and updated for RMM-C46 by Wasikul Islam (Univ. of Wisconsin-Madison).
+Original RMM was developed by S. Chekanov (ANL). It was extended into RMM-C46 format by Wasikul Islam (Univ. of Wisconsin-Madison), in collaboration with S. Chekanov (ANL).
 This version extends the framework by integrating a native RMM → C46 compression engine directly into the C++ backend, optimized for modern high-energy-physics ML workflows.
 
