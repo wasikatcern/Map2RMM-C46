@@ -1,4 +1,4 @@
-# Makefile example for Promc+ROOT+fastjet
+# Makefile example for Promc+ROOT+fastjet (RMM-C46)
 # S.Chekanov (ANL) 
 
 ifndef ROOTSYS 
@@ -24,12 +24,12 @@ ROOTGTTLIBS   = $(shell root-config --nonew --glibs)
 # Assign or add variables
 CXXFLAGS     += $(ROOTCFLAGS)
 LIBS         += $(ROOTLIBS)
-LIBS += -L${FASTJET}/lib -lfastjet -L./map2rmm/lib -lmap2rmm
+LIBS += -L${FASTJET}/lib -lfastjet -L./map2rmm46/lib -lmap2rmm
 LIBS += -L${PROMC}/lib -lpromc -lprotoc -lprotobuf -lprotobuf-lite -lcbook -lz
 
 
 INCLUDE1= -I./inc -I./
-INCLUDE2= -I./src -I./map2rmm/inc/
+INCLUDE2= -I./src -I./map2rmm46/inc/
 INCLUDE3= -I${PROMC}/include -I$(PROMC)/src -I${FASTJET}/include 
 
 
