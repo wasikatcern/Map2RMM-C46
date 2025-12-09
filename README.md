@@ -1,4 +1,4 @@
-# Map2RMM
+# Map2RMM (Compact 46)
 
 This is a library for mapping collision data to the rapidity-mass matrices (RMM) for machine learning.
 This example uses input Monte Carlo data in the form of ProMC files from the [HepSim Monte Carlo repository](http://atlaswww.hep.anl.gov/hepsim/). The example builds anti-KT jets, and fill ROOT histograms.
