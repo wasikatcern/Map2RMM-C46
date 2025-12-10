@@ -10,7 +10,7 @@ python ae_compare_rmm_all.py
 # Compare performance with unsupervised VAE training:
 python vae_compare_rmm_all.py
 
-# Display RMM-C46 plots (heatmap):
+# Display RMM-C46 plots (heatmap and correlation plots):
 python ../visualize/display_RMM_C46.py
 
 # Count number of zeros in RMM and RMM-C46 files :
