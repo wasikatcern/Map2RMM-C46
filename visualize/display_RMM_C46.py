@@ -12,10 +12,9 @@ from sklearn.manifold import TSNE
 #FILE_MAP_ADD = {
 #    "tt":    "out_C46/tt_c46_add.csv",
 #    "WZJet": "out_C46/wzjet_c46_add.csv",
-    #"HH":    "out_C46/hh_1500_c46_add.csv",
-    #"SH":    "out_C46/sh_1500_c46_add.csv",
+#    #"HH":    "out_C46/hh_1500_c46_add.csv",
+#    #"SH":    "out_C46/sh_1500_c46_add.csv",
 #}
-
 
 FILE_MAP_FROB = {
     "tt":    "out_C46/tt_c46_frob.csv",
@@ -26,9 +25,6 @@ FILE_MAP_FROB = {
 
 OUTFIG_ADD_HEAT  = "out_C46/C46_mean_heatmap_add.pdf"
 OUTFIG_FROB_HEAT = "out_C46/C46_mean_heatmap_frob.png"
-
-OUTFIG_ADD_TSNE  = "out_C46/C46_tsne_add.pdf"
-OUTFIG_FROB_TSNE = "out_C46/C46_tsne_frob.pdf"
 
 # Correlation matrix output
 OUTDIR_CORR = "out_C46"
@@ -289,6 +285,7 @@ def build_and_plot_corr_matrices(file_map, tag, n_single_events=5):
 # ------------------------------- main ------------------------------------
 
 def main():
+    
     # 1) ADD version heatmap
     #print("=== Building ADD-based C46 heatmap ===")
     #mean_df_add, cols_add = build_mean_df(FILE_MAP_ADD)
@@ -320,3 +317,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
