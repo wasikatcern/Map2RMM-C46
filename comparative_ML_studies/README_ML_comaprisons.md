@@ -13,5 +13,8 @@ python vae_compare_rmm_all.py
 # Display RMM-C46 plots (heatmap):
 python ../visualize/display_RMM_C46.py
 
+# Count number of zeros in RMM and RMM-C46 files :
+python count_num_zeros.py
+
 
 
