@@ -21,16 +21,27 @@ python make_RMM_C46.py --csv out/pythia8_X1500GeV_HH2bbll_data100percent.csv.gz 
 # Exact commands used to convert all RMMs into RMM-C46:
 
 python make_RMM_C46.py --csv out/pythia8_X500GeV_HH2bbll_data100percent.csv.gz --out out_C46/hh_500_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X700GeV_HH2bbll_data100percent.csv.gz --out out_C46/hh_700_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X1000GeV_HH2bbll_data100percent.csv.gz --out out_C46/hh_1000_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X1500GeV_HH2bbll_data100percent.csv.gz --out out_C46/hh_1500_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X2000GeV_HH2bbll_data100percent.csv.gz --out out_C46/hh_2000_c46_frob.csv
 
+
 python make_RMM_C46.py --csv out/pythia8_X500GeV_SH2bbll_data100percent.csv.gz --out out_C46/sh_500_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X700GeV_SH2bbll_data100percent.csv.gz --out out_C46/sh_700_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X1000GeV_SH2bbll_data100percent.csv.gz --out out_C46/sh_1000_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X1500GeV_SH2bbll_data100percent.csv.gz --out out_C46/sh_1500_c46_frob.csv
+
 python make_RMM_C46.py --csv out/pythia8_X2000GeV_SH2bbll_data100percent.csv.gz --out out_C46/sh_2000_c46_frob.csv
 
+
 python make_RMM_C46.py --csv out/tev13.6pp_pythia8_ttbar_2lep_data10percent.csv.gz --out out_C46/wzjet_c46_frob.csv
+
 python make_RMM_C46.py --csv out/tev13.6pp_pythia8_wzjet_2lep_data10percent.csv.gz --out out_C46/tt_c46_frob_10.csv
