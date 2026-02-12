@@ -60,7 +60,7 @@ Unlike the original Map2RMM framework, this version does not write or store the 
 
 The example included here reads ProMC Monte-Carlo files from HepSim, reconstructs physics objects (jets, muons, electrons, photons, MET), builds an RMM internally, compresses it to C46, and writes the results to a ROOT output file.
 
-## About the RMM-C46 Representation
+# About the RMM-C46 Representation
 
 The standard RMM is an N×N matrix encoding:
 MET
@@ -87,7 +87,7 @@ You may configure multiplicity and number of types in example.cc:
 const int maxNumber = 5;  // multiplicity per object type
 const int maxTypes  = 4;  // jets, muons, electrons, photons
 
-## Installation
+# Installation
 
 These instructions apply to any Linux system with GCC ≥ 4.
 
@@ -180,7 +180,7 @@ It converts the ROOT file into a CSV file containing:
 id, C46_1, C46_2, ..., C46_46
 
 
-## Usage:
+# Usage:
 
 python prepare.py output.root c46_output.csv
 
