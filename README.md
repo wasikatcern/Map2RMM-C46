@@ -1,6 +1,6 @@
 Full analysis chain for preparing RMM-C46 samples :
 
-## Autoencoder example
+## Using ana_truth code (directory) :
 
 Use the directory: ana_truth
 Setup C++/ROOT as : 
