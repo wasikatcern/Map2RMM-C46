@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+CURRENT_DIR=`pwd`
+
+source ./msetup.sh
+
+rm -f ana
+make -f Makefile
+
+export LD_LIBRARY_PATH=./lib/src/:$LD_LIBRARY_PATH
+echo "STORAGE=$STORAGE"
+
+TRIG=30
+
+
+DIR="/users/chekanov/hepsim/events/pp/13.6tev/pythia8_HH2bbll/"
+#DIR="/users/chekanov/work/SMFitter/theory/pythia8/package/out/"
+
+rm -f  data.in
+mass=500
+ls -1 $DIR/pythia8_X${mass}_HH2bbll.promc > data.in
+./ana data.in out/pythia8_X${mass}GeV_HH2bbll.root $TRIG      
+
+mass=700
+ls -1 $DIR/pythia8_X${mass}_HH2bbll.promc > data.in
+./ana data.in out/pythia8_X${mass}GeV_HH2bbll.root $TRIG          
+
+mass=1000
+ls -1 $DIR/pythia8_X${mass}_HH2bbll.promc > data.in
+./ana data.in out/pythia8_X${mass}GeV_HH2bbll.root $TRIG 
+
+mass=1500
+ls -1 $DIR/pythia8_X${mass}_HH2bbll.promc > data.in
+./ana data.in out/pythia8_X${mass}GeV_HH2bbll.root $TRIG  
+
+mass=2000
+ls -1 $DIR/pythia8_X${mass}_HH2bbll.promc > data.in
+./ana data.in out/pythia8_X${mass}GeV_HH2bbll.root $TRIG 
+

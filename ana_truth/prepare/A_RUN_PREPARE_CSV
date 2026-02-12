@@ -1,0 +1,82 @@
+#!/bin/bash
+# S.Chekanov (ANL)
+
+source ./setup.sh
+
+SCRIPT="prepare_csv.py"
+
+#echo "Process 1%"
+DATA_IN="../out/tev13.6pp_pythia8_ttbar_2lep.root"
+DATA_OUT="../out/tev13.6pp_pythia8_ttbar_2lep_data10percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+echo "Process 10%"
+DATA_OUT="../out/tev13.6pp_pythia8_wzjet_2lep_data10percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+# BSM events 
+# bins
+m[1]=500
+m[2]=700
+m[3]=1000
+m[4]=1500
+m[5]=2000
+
+NTOT=5
+
+
+n=1
+#------------------------------ start loop ----------------------------
+while  [ $n -le $NTOT ]
+do
+MASS=${m[$n]}
+nn=$n
+
+echo "Pythia HH samples"
+
+echo "Process 10%"
+DATA_IN="../out/pythia8_X${MASS}GeV_HH2bbll.root"
+DATA_OUT="../out/pythia8_X${MASS}GeV_HH2bbll_data10percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+
+echo "Process 100%"
+DATA_IN="../out/pythia8_X${MASS}GeV_HH2bbll.root"
+DATA_OUT="../out/pythia8_X${MASS}GeV_HH2bbll_data100percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+echo "Pythia SH samples"
+echo "Process 10%"
+DATA_IN="../out/pythia8_X${MASS}GeV_SH2bbll.root"
+DATA_OUT="../out/pythia8_X${MASS}GeV_SH2bbll_data10percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+
+echo "Process 100%"
+DATA_IN="../out/pythia8_X${MASS}GeV_SH2bbll.root"
+DATA_OUT="../out/pythia8_X${MASS}GeV_SH2bbll_data100percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+
+echo "MG5 samples"
+echo "Process 10%"
+DATA_IN="../out/mg5_py8_X2hh_${MASS}GeV_unweighted_events.root"
+DATA_OUT="../out/mg5_py8_X2hh_${MASS}GeV_unweighted_events_data10percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+echo "Process 100%"
+DATA_IN="../out/mg5_py8_X2hh_${MASS}GeV_unweighted_events.root"
+DATA_OUT="../out/mg5_py8_X2hh_${MASS}GeV_unweighted_events_data100percent.csv"
+python $SCRIPT $DATA_IN $DATA_OUT 1
+gzip -f $DATA_OUT
+
+
+let "n = $n + 1"
+done

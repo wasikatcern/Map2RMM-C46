@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+CURRENT_DIR=`pwd`
+
+./A_RUN_ttbar
+
+./A_RUN_zwjets

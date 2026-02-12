@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+CURRENT_DIR=`pwd`
+
+source ./msetup.sh
+
+rm -f ana
+make -f Makefile
+export LD_LIBRARY_PATH=./lib/src/:$LD_LIBRARY_PATH
+echo "STORAGE=$STORAGE"
+
+TRIG=30
+
+rm -f  data.in
+XDIR="/users/chekanov/hepsim/events/pp/13.6tev/pythia8_wzjet_2lep/"
+Make_input $XDIR/
+make -f Makefile
+./ana data.in out/tev13.6pp_pythia8_wzjet_2lep.root $TRIG 

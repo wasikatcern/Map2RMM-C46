@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+CURRENT_DIR=`pwd`
+
+source ./msetup.sh
+
+rm -f ana
+make -f Makefile
+
+export LD_LIBRARY_PATH=./lib/src/:$LD_LIBRARY_PATH
+echo "STORAGE=$STORAGE"
+
+TRIG=30
+
+# TTbar
+# PATT="SttH2bbll"
+
+# Zgamma
+# PATT="SzgH2bbll"
+
+# H->Zgamma
+# PATT="HzgH2bbll"
+
+# WW 
+# PATT="SwwH2bbll"
+
+# 3-boson production
+PATT="pythia8_dihiggs_cxSM"
+
+
+DIR=/users/chekanov/hepsim/events/pp/13.6tev/${PATT}/
+
+rm -f  data.in
+mass=500
+ls -1 $DIR/pythia8_X${mass}_cxSMbbll.promc  > data.in
+./ana data.in out/pythia8_X${mass}GeV_SH2bbll.root $TRIG      
+
+mass=700
+ls -1 $DIR/pythia8_X${mass}_cxSMbbll.promc  > data.in
+./ana data.in out/pythia8_X${mass}GeV_SH2bbll.root $TRIG          
+
+mass=1000
+ls -1 $DIR/pythia8_X${mass}_cxSMbbll.promc  > data.in
+./ana data.in out/pythia8_X${mass}GeV_SH2bbll.root $TRIG 
+
+mass=1500
+ls -1 $DIR/pythia8_X${mass}_cxSMbbll.promc  > data.in
+./ana data.in out/pythia8_X${mass}GeV_SH2bbll.root $TRIG  
+
+mass=2000
+ls -1 $DIR/pythia8_X${mass}_cxSMbbll.promc  > data.in
+./ana data.in out/pythia8_X${mass}GeV_SH2bbll.root $TRIG 
+

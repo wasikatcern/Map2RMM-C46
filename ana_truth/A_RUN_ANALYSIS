@@ -1,0 +1,23 @@
+#!/bin/bash
+# S.Chekanov (ANL)
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+source ./msetup.sh
+
+
+model="median"
+# Nr of events or -1
+# nevents=50000 
+nevents=-1
+# nevents=50000
+
+# working point 10 PB
+WORKING_POINT=10
+
+OUTPUT="out/tev13.6pp_pythia8_ttbar_2lep_ADFilter.root" 
+INPUT="out/tev13.6pp_pythia8_ttbar_2lep.root"
+SCRIPT="$SCRIPT_DIR/analysis_root_chunky.py"
+
+python $SCRIPT $model $nevents ${INPUT}  "data100percent" ${WORKING_POINT} $OUTPUT
+

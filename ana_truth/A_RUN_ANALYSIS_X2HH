@@ -1,0 +1,53 @@
+#!/bin/bash
+# S.Chekanov (ANL)
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+source ./msetup.sh
+
+
+model="median"
+# Nr of events or -1
+# nevents=50000 
+#nevents=-1
+nevents=50000
+
+# working point 10 PB
+WORKING_POINT=10
+
+SCRIPT="$SCRIPT_DIR/analysis_root_chunky.py"
+
+SAMPLE="pythia8"
+
+mass=500
+OUTPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll_ADFilter.root" 
+INPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll.root"
+python $SCRIPT $model $nevents ${INPUT}  "data100percent" ${WORKING_POINT} $OUTPUT
+
+
+mass=700
+OUTPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll_ADFilter.root"
+INPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll.root"
+python $SCRIPT $model $nevents ${INPUT}  "data100percent" ${WORKING_POINT} $OUTPUT
+
+
+mass=1000
+OUTPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll_ADFilter.root"
+INPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll.root"
+python $SCRIPT $model $nevents ${INPUT}  "data100percent" ${WORKING_POINT} $OUTPUT
+
+
+mass=1500
+OUTPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll_ADFilter.root"
+INPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll.root"
+python $SCRIPT $model $nevents ${INPUT}  "data100percent" ${WORKING_POINT} $OUTPUT
+
+
+mass=2000
+OUTPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll_ADFilter.root"
+INPUT="out/${SAMPLE}_X${mass}GeV_HH2bbll.root"
+python $SCRIPT $model $nevents ${INPUT}  "data100percent" ${WORKING_POINT} $OUTPUT
+
+
+
+

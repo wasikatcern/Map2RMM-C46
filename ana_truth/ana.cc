@@ -1,0 +1,972 @@
+/***************************************************************************
+ *  How to use ProMC files from HepSim, and how to build anti-KT jets
+ *  S.Chekanov (ANL) chekanov@anl.gov
+ *  A library for HEP events storage and processing based on Google's PB
+ *  The project web site: http://atlaswww.hep.anl.gov/hepsim/
+ ****************************************************************************/
+
+#include <TChain.h>
+#include <TFile.h>
+#include <TH1D.h>
+#include <TH2D.h>
+#include <TProfile.h>
+#include <TROOT.h>
+#include <TRandom2.h>
+#include <TTree.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "TMath.h"
+#include "TNtupleD.h"
+#include "time.h"
+
+#define MAGENTA "\033[35m" /* Magenta */
+#define RESET "\033[0m"
+#define RED "\033[31m" /* Red */
+
+struct stat sb;
+
+// promc
+#include "CParticle.h"
+#include "LParticle.h"
+#include "ProMC.pb.h"
+#include "ProMCBook.h"
+
+const double kPI = TMath::Pi();
+const double k2PI = 2 * kPI;
+#include "fastjet/ClusterSequence.hh"
+#include "fastjet/PseudoJet.hh"
+using namespace fastjet;
+
+using namespace std;
+using namespace promc;
+
+// project event
+float* projectevent_c46(const float CMS, const int maxN, const int maxNumberTypes,
+                     const vector<LParticle> missing,
+                     const vector<LParticle> jets,
+                     const vector<LParticle> bjets,
+                     const vector<LParticle> muons,
+                     const vector<LParticle> electrons,
+                     const vector<LParticle> photons);
+
+// find all files inside a directory
+std::vector<std::string> open(std::string name = "data.in") {
+  vector<std::string> ntup;
+  ifstream myfile;
+  myfile.open(name.c_str(), ios::in);
+
+  if (!myfile) {
+    cerr << " -> Can't open input file:  " << name << endl;
+    exit(1);
+  } else {
+    cout << "-> Read data file=" << name << endl;
+  }
+
+  string temp;
+  while (myfile >> temp) {
+    // the following line trims white space from the beginning of the string
+    temp.erase(temp.begin(), std::find_if(temp.begin(), temp.end(),
+                                          not1(ptr_fun<int, int>(isspace))));
+    if (temp.find("#") == 0) continue;
+    ntup.push_back(temp);
+  }
+  cout << "-> Number of files=" << ntup.size() << endl;
+  myfile.close();
+
+  for (unsigned int i = 0; i < ntup.size(); i++) {
+    cout << ".. file to analyse=" + ntup[i] << endl;
+  }
+  return ntup;
+}
+
+// main example
+int main(int argc, char** argv) {
+  if (argc != 4) {
+    cerr << " Unexpected number of command-line arguments. \n You are"
+         << " expected to provide one input (promc) and one output (ROOT) file "
+            "name and configuration name. \n"
+         << " Program stopped! " << endl;
+    return 1;
+  }
+
+  cout << "HepSim: Input  File =" << argv[1] << endl;
+  cout << "HepSim: Output File =" << argv[2] << endl;
+  cout << "HepSim: Configuration =" << argv[3] << endl;
+
+  // maximum events
+  const int maxEvents = -1; //  to run all
+                             // const int maxEvents=50000;
+
+  // fastjet
+  const bool debug = false;
+  const float CMS = 13600;  // GeV;
+  // const float CMS=1; // GeV;
+  // determined from analysis of QCD data <energy>/<mass>
+  const double ptLepton = 15;
+  const double ptJet = 20;
+  const double etaJet = 2.4;
+  const double etaLep = 2.4;
+  const double Rsize = 0.4;
+  const double Rlep_iso = 0.1;
+  const double Rjet_iso = 0.4;
+  const double misRateMu = 0.1;  // 0.1%
+  const double misRateEle = 1;   // 1%
+  double PT_LEPTON_LEAD = 60;    // leading pT of lepton used for selection
+  int NN = 0;
+
+  // total number of elements
+  const int NC46=46;
+
+
+  int iconfig = atoi(argv[3]);
+  cout << "Configuration name=" <<  iconfig << endl;
+
+  // https://arxiv.org/pdf/1512.01094.pdf
+  // 1+0.003*pT  (~1000 GeV is about 4%)
+  const double misRateB = 1;  // 1% b-tag misidentification rate
+
+  TRandom2 misrate;
+
+  cout << "min PT lepton=" << ptLepton << endl;
+  cout << "min PT jet=" << ptJet << endl;
+  cout << "min MET   =" << ptJet << endl;
+  cout << "max ETA jet=" << etaJet << endl;
+  cout << "lepton dR isolation=" << Rlep_iso << endl;
+  cout << "jet    dR isolation=" << Rjet_iso << endl;
+  cout << "Mis-identification rates in %. Ele:" << misRateEle
+       << " Mu:" << misRateMu << endl;
+  cout << "mistag b-jet rate % :" << misRateB << endl;
+
+  cout << "=================== event selection ================================"
+       << endl;
+  if (iconfig == 0)
+    cout << "  Single lepton with pT>60 GeV as in the ATLAS PRL paper" << endl;
+  if (iconfig == 1) cout << "  MET>200 GeV trigger" << endl;
+  if (iconfig == 2) cout << "  Single lepton with pT>60 GeV trigger" << endl;
+  if (iconfig == 3) cout << "  2 leptons with pT>15 GeV trigger" << endl;
+  if (iconfig == 30) cout << "  2 leptons with pT>15 GeV trigger and 2-bjets" << endl;
+  if (iconfig == 4) cout << "  Single photon with pT>150 GeV trigger" << endl;
+  if (iconfig == 5) cout << "  2 photons with pT>30 GeV trigger" << endl;
+  if (iconfig == 6) cout << "  Single jet with pT>500 GeV trigger" << endl;
+  if (iconfig == 7)
+    cout << "  4 jets with pT>200 GeV and 100 GeV for other 3 jets " << endl;
+  if (iconfig == 1000)
+    cout << "  Inclusive jets with pT>50 GeV and 2->2 ME at 1 TeV as in "
+            "S.Chekanov, R.Zhang, Eur. Phys. J. Plus (2024) 139:237 "
+         << endl;
+  cout << "=================== end selection =================================="
+       << endl;
+
+  int maxNumber = 10;  // max number for each object (MET is not counted)
+  int maxTypes = 5;    // max numbers of types (met not counted)
+                       // The RMM is 4t3n (maxTypes(t) maxNumber(n))
+  string names[maxTypes + 1] = {"MET", "j", "b", "#mu", "e", "#gamma"};
+  string names_debug[maxTypes + 1] = {"e/met", "j", "b", "m", "e", "g"};
+  cout << "Project using max number of each object=" << maxNumber << endl;
+  cout << "Number of particle types==" << maxTypes << endl;
+  const int mSize = maxTypes * maxNumber + 1;
+  // non-zero in triangular matrix
+  int NonZero = ((1 + mSize) * mSize) / 2;
+
+  int nDiJets = 0;
+  // total events
+  int ntot = 0;    // total events
+  int nfiles = 0;  // total files
+  double weight = 1.0;
+  // each seprate accepted event
+  int event=0;
+
+  // std::vector<std::string> files = open("data.in");
+
+  // get input list
+  // std::vector<std::string> files;
+  // files.push_back( string(argv[1]));
+  std::vector<std::string> files = open(string(argv[1]));
+
+  double cross = 0;
+  double xcross = 0;
+  int nselect = 0;
+  double nlumi=0; // nlumi  
+
+  // string outputfile="output.root";
+  // cout << "\n -> Output file is =" << outputfile << endl;
+  // TFile * RootFile = new TFile(outputfile.c_str(), "RECREATE", "Histogram
+  // file");
+  //   RootFile->SetCompressionLevel(0);
+  TFile* RootFile = new TFile(argv[2], "RECREATE", "Histogram file");
+
+  TH1D* h_debug = new TH1D("EventFlow", "EventFlow", 10, 0, 10.);
+  TH1D* h_cross = new TH1D("cross", "Cross [pb], Lumi [pb-1]", 5, 0, 5.);
+  TH1D* h_info = new TH1D("Info", "Info", 10, 0, 10.);
+  TH1D* h_iso = new TH1D("iso_energy", "isolation fraction", 100, 0, 3.0);
+
+  TH1D* cpucores = new TH1D("cpucores", "CPU cores", 5, 0, 5);
+  cpucores->Fill(1, 1);
+
+  TH1D* h_met = new TH1D("met_pt", "MET", 100, 0, 1000);
+  TH1D* h_jetN = new TH1D("jetN", "Nr of light jets", 20, 0, 20);
+  TH1D* h_bjetN = new TH1D("bjetN", "Nr of B-Jet", 20, 0, 20);
+  TH1D* h_photonN = new TH1D("photonN", "Nr of photons", 20, 0, 20);
+  TH1D* h_muonN = new TH1D("muonN", "Nr of muons", 20, 0, 20);
+  TH1D* h_electronN = new TH1D("electronN", "Nr of electrons", 20, 0, 20);
+
+  TH1D* h_lep_selectedN = new TH1D("lep_selectedN", "Nr of leptons", 20, 0, 20);
+
+  TH1D* h_eta_jet = new TH1D("jet_eta", "eta", 40, -5, 5);
+  TH1D* h_pt_jet = new TH1D("jet_pt", "pt", 100, 0, 1000);
+  TH1D* h_pt_bjet = new TH1D("bjet_pt", "pt", 100, 0, 1000);
+  TH1D* h_eta_bjet = new TH1D("bjet_eta", "eta", 40, -5, 5);
+  TH1D* h_pt_photon = new TH1D("photon_pt", "leading photon pT", 400, 0, 1000);
+  TH1D* h_pt_electron =
+      new TH1D("electron_pt", "leading electron pT", 400, 0, 1000);
+  TH1D* h_pt_muon = new TH1D("muon_pt", "leading muon pT", 400, 0, 1000);
+
+  TH1D* h_mass_ee = new TH1D("mass_ee", "E+E- mass", 30, 0, 300);
+  TH1D* h_mass_mumu = new TH1D("mass_mumu", "MU+MU- mass", 30, 0, 300);
+  TH1D* h_mass_leptons = new TH1D("mass_leptons", "MU+MU- and E+E- mass", 30, 0, 300);
+
+  TH1D* h_mjetjetbb = new TH1D("mass_bb", "bb mass", 20, 0, 500);
+  TH1D* h_mjetjetbb_zmass = new TH1D("mass_bb_zmass", "bb mass after Z mass cut", 20, 0, 500);
+  TH1D* h_mass_leptons_bbar = new TH1D("mass_leptons_bbar", "MU+MU- and E+E- mass after 2 jets", 30, 0, 300);
+
+  // profile 
+  TProfile * h_prof = new TProfile("profile", "profile", NC46, 0, NC46,  0, 100);
+
+  h_pt_jet->GetXaxis()->SetTitle("pT [GeV]");
+  h_pt_jet->GetYaxis()->SetTitle("Events");
+  h_pt_bjet->GetXaxis()->SetTitle("pT [GeV]");
+  h_pt_bjet->GetYaxis()->SetTitle("Events");
+  h_pt_photon->GetXaxis()->SetTitle("pT [GeV]");
+  h_pt_photon->GetYaxis()->SetTitle("Events");
+  h_pt_electron->GetXaxis()->SetTitle("pT [GeV]");
+  h_pt_electron->GetYaxis()->SetTitle("Events");
+  h_pt_muon->GetXaxis()->SetTitle("pT [GeV]");
+  h_pt_muon->GetYaxis()->SetTitle("Events");
+  h_eta_jet->GetXaxis()->SetTitle("Eta");
+  h_eta_jet->GetYaxis()->SetTitle("Events");
+
+
+
+
+  // remember which matrix do you fill
+  TH1D* h_dimensions =
+      new TH1D("dimensions", "(1)maxNumber,(2)maxTypes, (3)mSize", 5, 0, 5);
+  h_dimensions->Fill(1, (float)maxNumber);
+  h_dimensions->Fill(2, (float)maxTypes);
+  h_dimensions->Fill(3, (float)mSize);
+
+
+  h_info->Fill("IConfig", iconfig);
+  h_info->Fill("PTjet_min", ptJet);
+  h_info->Fill("PTlepton_min", ptLepton);
+  h_info->Fill("PTgamma_min", ptLepton);
+
+  for (int i = 0; i < 10; i++) h_info->SetBinError(i, 0);
+
+  TTree* m_tree = new TTree("inputNN", "inputNN");
+  m_tree->SetAutoFlush(100000);
+  Int_t m_id;
+  std::vector<Double32_t> m_proj;
+  Int_t m_run;
+  Int_t m_event;
+  Double32_t m_weight;
+
+  std::vector<Double32_t> m_multi;
+  m_tree->Branch("id", &m_id);
+  m_tree->Branch("run", &m_run);
+  m_tree->Branch("event", &m_event);
+  m_tree->Branch("weight", &m_weight);
+  m_tree->Branch("proj", &m_proj);
+  m_tree->Branch("multiplicity", &m_multi);
+
+  // jets
+  Strategy strategy = fastjet::Best;
+  JetDefinition jet_def(fastjet::antikt_algorithm, Rsize, strategy);
+  // JetDefinition jet_def(fastjet::kt_algorithm, Rparam, strategy);
+  // JetDefinition jet_def(fastjet::cambridge_algorithm, Rparam, strategy);
+  // JetDefinition jet_def(fastjet::antikt_algorithm, Rparam, strategy);
+
+  std::map<int, int> chargemap;  // pad that keeps charge*3
+
+  for (unsigned int m = 0; m < files.size(); m++) {
+    string Rfile = files[m];
+    ProMCBook* epbook = new ProMCBook(Rfile.c_str(), "r");
+
+    cout << "\n\n Start to read.." << endl;
+    // get the version number
+    int h = epbook->getVersion();
+    if (m == 0) cout << "Version = " << h << endl;
+    // get the description of this file
+    string d = epbook->getDescription();
+    if (m == 0) cout << "Description = " << d << endl;
+    int nev = epbook->getEvents();
+    cout << "Events = " << nev << endl;
+    // get the header file with units, cross sections etc.
+    ProMCHeader header = epbook->getHeader();
+
+    // this part reads the header information with particle data.
+    // you can access names, id, charge*3, and other useful
+    // information from PDG table. As an example, we make a map
+    // that keeps charge*3.
+    if (m == 0) {
+      for (int i1 = 0; i1 < header.particledata_size(); i1++) {
+        ProMCHeader_ParticleData data = header.particledata(i1);
+        int charge3 = data.charge();
+        int id = data.id();
+        double mass = data.mass();
+        string name = data.name();
+        // cout << "name=" << name << " mass=" << mass << " charge=" << charge3
+        // << endl;
+        chargemap[id] = charge3;
+      }
+    }
+
+    // here are the units
+    double kEV = (double)(header.momentumunit());
+    // double kLe=(double)(header.lengthunit());
+
+    // loop over all events
+    for (int nn = 0; nn < nev; nn++) {
+      if (epbook->next() != 0) continue;
+      ProMCEvent eve = epbook->get();
+
+      // get truth information
+      ProMCEvent_Particles* pa = eve.mutable_particles();
+      h_debug->Fill("Input", 1);
+      ntot++;
+
+      if (maxEvents > -1)
+        if (ntot > maxEvents) break;
+
+      double xlumi = 0;
+      if (m > 0) {
+        xlumi = (double)ntot / cross;  // lumi so far
+      }
+
+      if (ntot % 1000 == 0)
+        cout << " # Events=" << ntot << " X-cross=" << cross << " pb"
+             << " Lumi so far=" << xlumi / 1000.0 << " fb-1"
+             << " selected=" << NN << endl;
+
+      vector<PseudoJet> avec;
+      vector<int> nrid;
+      vector<LParticle> candidates;
+      vector<LParticle> bquarks;
+
+      double pxsum = 0;
+      double pysum = 0;
+      double pzsum = 0;
+
+      // fill stable and no neutrino
+      for (int i2 = 0; i2 < pa->pdg_id_size(); i2++) {
+        int type = pa->pdg_id(i2);
+        if (abs(type) == 12 || abs(type) == 14 || abs(type) == 16) continue;
+        double px = pa->px(i2) / kEV;
+        double py = pa->py(i2) / kEV;
+        double pz = pa->pz(i2) / kEV;
+        double ee = pa->energy(i2) / kEV;
+        double pt = sqrt(px * px + py * py);
+        double eta = -log(tan(atan2(pt, (double)pz) / 2));
+
+        // b-quarks
+        if (abs(type) == 5 and pt > 0.3 * ptJet) {
+          int charge = 1;
+          if (type < 0) charge = -1;
+          LParticle b(px, py, pz, ee, charge);
+          b.SetStatus(0);
+          b.SetType(type);
+          bquarks.push_back(b);
+        };
+
+        if (pa->status(i2) != 1) continue;
+        // muon or electron or photon
+        if (abs(type) == 11 || abs(type) == 13 || abs(type) == 22) {
+          int charge = 1;
+          if (type < 0) charge = -1;
+          LParticle p(px, py, pz, ee, charge);
+          p.SetStatus(i2);
+          p.SetType(type);
+          if (iconfig < 100) {
+            if (pt > ptLepton && TMath::Abs(eta) < etaLep) {
+              if (debug)
+                cout << i2 << " ProMC type=" << type << " ProMC pt=" << pt
+                     << "ProMC eta=" << eta << endl;
+              candidates.push_back(p);
+            }
+          }
+        };
+        // int charge=chargemap[pa->pdg_id(j)]; // get charge
+        if (pt < 0.1) continue;
+        if (fabs(eta) > 3.5) continue;
+        avec.push_back(PseudoJet(px, py, pz, ee));
+        nrid.push_back(i2);
+
+        pxsum = pxsum + px;
+        pysum = pysum + py;
+        pzsum = pzsum + pz;
+      }
+
+      // isolate candidates
+      vector<LParticle> leptons;
+      double IsoEnergy = 0.1;
+      // isolate leading lepton
+      for (unsigned int k1 = 0; k1 < candidates.size(); k1++) {
+        LParticle xlep = (LParticle)candidates.at(k1);
+        TLorentzVector lep = xlep.GetP();
+        double p_pt = lep.Et();
+        double p_eta = lep.PseudoRapidity();
+        double p_phi = lep.Phi();
+        if (p_phi < 0) p_phi = k2PI + p_phi;
+        if (iconfig < 100 && (lep.Perp() < ptLepton || fabs(p_eta) > etaLep))
+          continue;
+
+        double esumP = 0;
+        for (unsigned int k2 = 0; k2 < avec.size(); k2++) {
+          PseudoJet part = avec.at(k2);
+          double pt = part.perp();
+          double eta = part.pseudorapidity();
+          double phi = part.phi();
+          if (phi < 0) phi = k2PI + phi;
+          double deta = p_eta - eta;
+          double dphi = p_phi - phi;
+          double adphi = TMath::Abs(dphi);
+          if (adphi > kPI) adphi = k2PI - adphi;
+          double ddr = TMath::Sqrt(deta * deta + adphi * adphi);
+          if (ddr < Rlep_iso) esumP = esumP + pt;
+        }
+        double isoFrac = esumP / p_pt;
+        // cout << "Esum=" << esumP << " p_pt = " << p_pt << " iso=" << isoFrac
+        // << endl;
+        h_iso->Fill(isoFrac);
+        if (isoFrac < 1.0 + IsoEnergy) {
+          leptons.push_back(xlep);
+        };
+      }
+
+      unsigned int nLeptons = leptons.size();
+      if (nLeptons > 1)
+        std::sort(leptons.begin(), leptons.end(), greater<LParticle>());
+
+      // remove isolated lepton from vectors used for jets
+      vector<PseudoJet> hadrons;
+      for (unsigned int k = 0; k < avec.size(); k++) {
+        PseudoJet part = avec.at(k);
+        int id = nrid.at(k);
+        int isLep = false;
+        for (unsigned int ll = 0; ll < leptons.size(); ll++) {
+          LParticle LL = leptons.at(ll);
+          int id_lep = LL.GetStatus();
+          if (id_lep == id) isLep = true;
+        }
+        if (!isLep) hadrons.push_back(part);
+      }
+
+      // make jets
+      ClusterSequence clust_seq(hadrons, jet_def);
+      vector<PseudoJet> jets_truth = clust_seq.inclusive_jets(ptJet);
+      vector<PseudoJet> sorted_jets = sorted_by_pt(jets_truth);
+      vector<LParticle> jets;
+      vector<LParticle> bjets;  // jets with b-quarks
+      vector<LParticle> alljets;
+
+      for (unsigned int k = 0; k < sorted_jets.size(); k++) {
+        double eta = sorted_jets[k].pseudorapidity();
+        double phi = sorted_jets[k].phi();
+        double pt = sorted_jets[k].perp();
+        double e = sorted_jets[k].e();
+        if (iconfig < 100 && (pt < ptJet || fabs(eta) > etaJet)) continue;
+
+        // misidentified b-jets using misRateB rate
+        int FakeB = 0;
+        if (100.0 * misrate.Rndm() < (misRateB + 0.003 * pt)) FakeB = 1;
+
+        // find and label b-quark jets
+        int matchB = 0;
+        for (unsigned int k3 = 0; k3 < bquarks.size(); k3++) {
+          LParticle p = (LParticle)bquarks.at(k3);
+          TLorentzVector L = p.GetP();
+          double pt_b = L.Perp();
+          double eta_b = L.PseudoRapidity();
+          double phi_b = L.Phi();
+          if (phi_b < 0) phi_b = k2PI + phi_b;
+          double deta = eta_b - eta;
+          double dphi = phi_b - phi;
+          double dR = sqrt(deta * deta + dphi * dphi);
+          if (dR < Rsize && pt_b > 0.5 * pt) matchB = 1;
+        }
+
+        // light flavor jets
+        TLorentzVector l;
+        l.SetPtEtaPhiE(pt, eta, phi, e);
+        LParticle p;
+        p.SetP(l);
+        p.SetType(matchB);  // label b-jet quarks
+        int nmulti = sorted_jets[k].constituents().size();
+        p.SetCharge(nmulti);   // multiplicity
+        alljets.push_back(p);  // all jets
+
+        if (matchB == 0 && FakeB == 0) {
+          h_pt_jet->Fill(pt);
+          h_eta_jet->Fill(eta);
+          jets.push_back(p);  // light-flavored jets
+        } else if (matchB == 1 || FakeB == 1) {
+          h_pt_bjet->Fill(pt);
+          h_eta_bjet->Fill(eta);
+          if (FakeB == 1) p.SetType(-1);
+          bjets.push_back(p);  // b-jets and fake b-jets
+        }
+
+      }  // end loop
+
+      unsigned int nJets = jets.size();
+      if (nJets > 1) std::sort(jets.begin(), jets.end(), greater<LParticle>());
+
+      // overlap removal for 3 first jets (how many tipes)
+      int nMaxJet = jets.size();
+      if (nMaxJet > maxNumber) nMaxJet = maxNumber;
+
+      vector<LParticle> leptons_iso;
+      for (unsigned int ll = 0; ll < nLeptons; ll++) {
+        LParticle LL = leptons.at(ll);
+        TLorentzVector LP = LL.GetP();
+        double phi_lep = LP.Phi();
+        double eta_lep = LP.PseudoRapidity();
+        double y_lep = LP.Rapidity();
+
+        bool found = false;  // isolated from jets
+        for (int ii = 0; ii < nMaxJet; ii++) {
+          LParticle LPP = jets.at(ii);
+          TLorentzVector LP = LPP.GetP();
+          double phi_jet = LP.Phi();
+          double eta_jet = LP.PseudoRapidity();
+          double y_jet = LP.Rapidity();
+          double deta = TMath::Abs(y_jet - y_lep);
+          double dphi = TMath::Abs(phi_jet - phi_lep);
+          if (dphi > kPI) dphi = k2PI - dphi;
+          double dR = TMath::Sqrt(deta * deta + dphi * dphi);
+          if (dR < Rjet_iso) found = true;
+        }
+        if (found) continue;
+        leptons_iso.push_back(LL);
+      }
+
+      // now classify isolated candidates
+      vector<LParticle> missing;
+      vector<LParticle> electrons;
+      vector<LParticle> muons;
+      vector<LParticle> photons;
+      for (unsigned int k1 = 0; k1 < leptons_iso.size(); k1++) {
+        LParticle xlep = (LParticle)leptons_iso.at(k1);
+        int type = xlep.GetType();
+        if (abs(type) == 11) electrons.push_back(xlep);
+        if (abs(type) == 13) muons.push_back(xlep);
+        if (abs(type) == 22) photons.push_back(xlep);
+      }
+
+       //cout << "Nr leptons="<< leptons_iso.size() << " Ele=" << electrons.size() << " Mu=" <<
+       //muons.size() << " Njets=" << jets.size() << " b-jets=" << bjets.size() << endl;
+
+      // missing
+      TLorentzVector l;
+      double met_pt = sqrt(pxsum * pxsum + pysum * pysum);
+      double met_phi = 0;
+      if (pxsum > 0) met_phi = atan2(pysum, pxsum);
+      if (pxsum < 0) met_phi = atan2(pysum, pxsum) + kPI;
+      // MET below pT jet is not considered
+      if (met_pt < ptJet) {
+        met_pt = 0;
+        met_phi = 0;
+      }
+
+      l.SetPtEtaPhiM(met_pt, 0, met_phi, 0);
+      h_met->Fill(met_pt);
+      l.SetPz(0);
+      LParticle p;
+      p.SetP(l);
+      p.SetType(1);
+      missing.push_back(p);
+
+      // sort all vectors with objects
+      if (jets.size() > 1)
+        std::sort(jets.begin(), jets.end(), greater<LParticle>());
+      if (muons.size() > 1)
+        std::sort(muons.begin(), muons.end(), greater<LParticle>());
+      if (electrons.size() > 1)
+        std::sort(electrons.begin(), electrons.end(), greater<LParticle>());
+      if (photons.size() > 1)
+        std::sort(photons.begin(), photons.end(), greater<LParticle>());
+      if (bjets.size() > 1)
+        std::sort(bjets.begin(), bjets.end(), greater<LParticle>());
+      if (alljets.size() > 1)
+        std::sort(alljets.begin(), alljets.end(), greater<LParticle>());
+
+      /************************************************
+       * Event selection
+       ************************************************/
+
+      bool SelectEvent = false;
+
+      // single lepton trigger pT>60 GeV
+      // PRL or Trigger 2
+      if (iconfig == 0 || iconfig == 2) {
+        if (muons.size() > 0) {
+          LParticle LPP1 = muons.at(0);
+          TLorentzVector L = LPP1.GetP();
+          if (L.Perp() > PT_LEPTON_LEAD) SelectEvent = true;
+        }
+
+        if (electrons.size() > 0) {
+          LParticle LPP1 = electrons.at(0);
+          TLorentzVector L = LPP1.GetP();
+          if (L.Perp() > PT_LEPTON_LEAD) SelectEvent = true;
+        }
+      }  // iconfig == 0
+
+      // MET trigger
+      if (iconfig == 1) {
+        if (met_pt > 200) SelectEvent = true;
+      }  // iconfig == 0
+
+      //  2 lepton trigger   
+      if (iconfig == 3) {
+        PT_LEPTON_LEAD = ptLepton;
+        int NrLepton = 0;
+        for (unsigned int j1 = 0; j1 < muons.size(); j1++) {
+          LParticle muon = muons.at(j1);
+          TLorentzVector LM = muon.GetP();
+          if (LM.Perp() > PT_LEPTON_LEAD) NrLepton++;
+        }
+        for (unsigned int j1 = 0; j1 < electrons.size(); j1++) {
+          LParticle ele = electrons.at(j1);
+          TLorentzVector LM = ele.GetP();
+          if (LM.Perp() > PT_LEPTON_LEAD) NrLepton++;
+        }
+        if (NrLepton > 1) SelectEvent = true;
+      };
+
+
+      //  2 leptons + 2 b-jets 
+      if (iconfig == 30) {
+        PT_LEPTON_LEAD = ptLepton;
+        int NrLepton = 0;
+        for (unsigned int j1 = 0; j1 < muons.size(); j1++) {
+          LParticle muon = muons.at(j1);
+          TLorentzVector LM = muon.GetP();
+          if (LM.Perp() > PT_LEPTON_LEAD) NrLepton++;
+        }
+        for (unsigned int j1 = 0; j1 < electrons.size(); j1++) {
+          LParticle ele = electrons.at(j1);
+          TLorentzVector LM = ele.GetP();
+          if (LM.Perp() > PT_LEPTON_LEAD) NrLepton++;
+        }
+	if (NrLepton > 1 && bjets.size() > 1) SelectEvent = true;
+      };
+
+
+
+
+      // single photon > 150 GeV
+      if (iconfig == 4) {
+        if (photons.size() > 0) {
+          LParticle p1 = photons.at(0);
+          TLorentzVector P1 = p1.GetP();
+          if (P1.Perp() > 150) SelectEvent = true;
+        };
+      };
+
+      // at least 2 photons with pT>20 GeV
+      if (iconfig == 5)
+        if (photons.size() > 1) SelectEvent = true;
+
+
+
+      // single jet pT> 500 GeV
+      if (iconfig == 6) {
+        if (alljets.size() > 0) {
+          LParticle j1 = alljets.at(0);
+          TLorentzVector L1 = j1.GetP();
+          if (L1.Perp() > 500) SelectEvent = true;
+        }
+      };
+
+      if (iconfig == 1000) {
+        if (alljets.size() > 0) {
+          LParticle j1 = alljets.at(0);
+          TLorentzVector L1 = j1.GetP();
+          if (L1.Perp() > 30) SelectEvent = true;
+        }
+      };
+
+      // multijets. 1 jet above 200 and other 3 above 100 GeV
+      if (iconfig == 7) {
+        int II = 0;
+        if (alljets.size() > 3) {
+          LParticle j1 = alljets.at(0);
+          TLorentzVector L1 = j1.GetP();
+          if (L1.Perp() > 200) II++;
+
+          LParticle j2 = alljets.at(1);
+          TLorentzVector L2 = j2.GetP();
+          if (L2.Perp() > 100) II++;
+
+          LParticle j3 = alljets.at(2);
+          TLorentzVector L3 = j3.GetP();
+          if (L3.Perp() > 100) II++;
+
+          LParticle j4 = alljets.at(3);
+          TLorentzVector L4 = j4.GetP();
+          if (L4.Perp() > 100) II++;
+        };
+
+        if (II > 3) SelectEvent = true;
+      }
+
+      // main cut to select event
+      if (SelectEvent == false) continue;
+
+      if (photons.size() > 0) {
+        LParticle LPP1 = photons.at(0);
+        TLorentzVector L = LPP1.GetP();
+        h_pt_photon->Fill(L.Perp());
+      }
+
+      if (muons.size() > 0) {
+        LParticle LPP1 = muons.at(0);
+        TLorentzVector L = LPP1.GetP();
+        h_pt_muon->Fill(L.Perp());
+      }
+
+      if (electrons.size() > 0) {
+        LParticle LPP1 = electrons.at(0);
+        TLorentzVector L = LPP1.GetP();
+        h_pt_electron->Fill(L.Perp());
+      }
+
+      // selected leptons
+      h_lep_selectedN->Fill(muons.size() + electrons.size());
+
+      h_debug->Fill("Selected", 1);
+
+      NN++;
+
+      h_jetN->Fill((float)jets.size());
+      h_bjetN->Fill((float)bjets.size());
+      h_photonN->Fill((float)photons.size());
+      h_muonN->Fill((float)muons.size());
+      h_electronN->Fill((float)electrons.size());
+
+      bool takeZmass = false;
+      double ZMassEE = 0;
+      double ZMassMM = 0;
+
+      // some lepton invariant masses
+      // muons
+      if (muons.size() > 1) {
+        for (unsigned int jm1 = 0; jm1 < muons.size() - 1; jm1++) {
+          for (unsigned int jm2 = jm1 + 1; jm2 < muons.size(); jm2++) {
+            LParticle muon1 = muons.at(jm1);
+            TLorentzVector L1 = muon1.GetP();
+            LParticle muon2 = muons.at(jm2);
+            TLorentzVector L2 = muon2.GetP();
+            if (muon1.GetCharge() * muon2.GetCharge() > 0) continue;
+            TLorentzVector PP = L1 + L2;
+            ZMassMM = PP.M();
+            if (ZMassMM > 80 && ZMassMM < 100) takeZmass = true;
+            h_mass_mumu->Fill(ZMassMM, weight);
+            h_mass_leptons->Fill(ZMassMM, weight);
+	  }
+        }
+      }
+
+      // electons
+      if (electrons.size() > 1) {
+        for (unsigned int jm1 = 0; jm1 < electrons.size() - 1; jm1++) {
+          for (unsigned int jm2 = jm1 + 1; jm2 < electrons.size(); jm2++) {
+            LParticle ele1 = electrons.at(jm1);
+            TLorentzVector L1 = ele1.GetP();
+            LParticle ele2 = electrons.at(jm2);
+            TLorentzVector L2 = ele2.GetP();
+            if (ele1.GetCharge() * ele2.GetCharge() > 0) continue;
+            TLorentzVector PP = L1 + L2;
+            ZMassEE = PP.M();
+            if (ZMassEE > 80 && ZMassEE < 100) takeZmass = true;
+            h_mass_ee->Fill(ZMassEE, weight);
+            h_mass_leptons->Fill(ZMassEE, weight);
+	  }
+        }
+      }
+
+      // standard analysis. Look at 2 b-jets at Z
+      if (bjets.size() > 1) {
+        LParticle LPP1 = bjets.at(0);
+        TLorentzVector LP1 = LPP1.GetP();
+        LParticle LPP2 = bjets.at(1);
+        TLorentzVector LP2 = LPP2.GetP();
+        TLorentzVector LPP = LP1 + LP2;
+        h_mjetjetbb->Fill(LPP.M());
+        if (takeZmass) h_mjetjetbb_zmass->Fill(LPP.M());
+        if (ZMassEE>0) h_mass_leptons_bbar->Fill(ZMassEE, weight);
+        if (ZMassMM>0) h_mass_leptons_bbar->Fill(ZMassMM, weight);
+
+      }
+      // RMM matrix next
+
+      m_proj.clear();
+      m_multi.clear();
+      // m_m=muons.size();
+      // m_e=electrons.size();
+      // m_g=photons.size();
+      // m_j=jets.size();
+      m_id = 0;
+      m_event = NN;
+      m_run = 0;
+      m_weight = 1.0;
+
+      // we accept non-empty events only!
+      if (met_pt == 0 && jets.size() == 0 && muons.size() == 0 &&
+          electrons.size() == 0 && photons.size() == 0)
+        continue;
+
+       cout << event << " Nr of gamma= " << photons.size()
+             << " e=" << electrons.size() << " mu=" << muons.size()
+             << " jet=" << jets.size() << endl;
+
+      // matrix has size:
+      if (debug) {
+        cout << "# Nr jets=" << jets.size() << " muons=" << muons.size()
+             << " ele=" << electrons.size() << " pho=" << photons.size()
+             << endl;
+
+        cout << " Nr of Photons=" << photons.size() << endl;
+        for (unsigned int i1 = 0; i1 < photons.size(); i1++) {
+          LParticle LPP1 = photons.at(i1);
+          TLorentzVector LP1 = LPP1.GetP();
+          cout << i1 << " pt=" << LP1.Et() << " eta=" << LP1.Eta()
+               << " energy=" << LP1.E() << endl;
+        }
+
+        cout << "\n Nr of Jets=" << jets.size() << endl;
+        for (unsigned int i1 = 0; i1 < jets.size(); i1++) {
+          LParticle LPP1 = jets.at(i1);
+          TLorentzVector LP1 = LPP1.GetP();
+          cout << i1 << " pt=" << LP1.Et() << " eta=" << LP1.Eta()
+               << " energy=" << LP1.E() << endl;
+        }
+      };
+
+      // return rapidity-mass matrix, RMM-C46,  (with zeros)
+      float* projArray = projectevent_c46(CMS, maxNumber, maxTypes, missing, jets,
+                                       bjets, muons, electrons, photons);
+
+
+      for (int h = 0; h < NC46; h++)
+                 h_prof->Fill(h,float(projArray[h]),1.0); 
+
+
+      // triangular matrix is a special kind of square matrix.
+      // upper triangular matrix or right triangular matrix.
+      // non-zero in triangular matrix
+      if (debug) {
+        for (int h = 0; h < NC46; h++) {
+          cout << h << ") ";
+              printf("%.2e ", float(projArray[h]));
+            }
+          printf("\n");
+      };  // end debug
+
+
+      int nMax = mSize * mSize;
+      Double32_t* array = new Double32_t[nMax];  // allocate
+      for (int h = 0; h < nMax; h++) array[h] = 0;
+
+      Double32_t* arrayM = new Double32_t[5];  // allocate
+      for (int h = 0; h < 5; h++) arrayM[h] = 0;
+
+      // simple count of multiplicities:
+      // met, Nr(jets), Nr(mu), Nr(el), Nr(gam)
+      Double32_t* arrayMuliplicity = new Double32_t[5];  // allocate
+      arrayM[0] = met_pt / CMS;
+      unsigned int nj = maxNumber;
+      if (jets.size() < nj) nj = jets.size();
+      arrayM[1] = (Double32_t)(nj / (float)maxNumber);
+      nj = maxNumber;
+      if (muons.size() < nj) nj = muons.size();
+      arrayM[2] = (Double32_t)(nj / (float)maxNumber);
+      nj = maxNumber;
+      if (electrons.size() < nj) nj = electrons.size();
+      arrayM[3] = (Double32_t)(nj / (float)maxNumber);
+      nj = maxNumber;
+      if (photons.size() < nj) nj = electrons.size();
+      arrayM[4] = (Double32_t)(nj / (float)maxNumber);
+      for (int i = 0; i < 5; i++) m_multi.push_back(arrayM[i]);
+
+      int count = 0;
+      int non_empty = 0;
+
+      //  fill all C46 
+      for (int h = 0; h < NC46; h++) {
+          float dd = projArray[h];
+          m_proj.push_back(dd);
+       }
+
+      // fill this matrix if you want to store zeros too!
+      // for (int i = 0; i < nMax; i++) m_proj.push_back( array[i] );
+
+      delete[] arrayM;
+      delete[] array;
+      delete[] projArray;
+
+      if (non_empty > 0) h_debug->Fill("Final NonEmpty", 1.0);
+
+      event++;
+      m_tree->Fill();
+
+    }  // end event loop
+
+    if (maxEvents > -1)
+      if (ntot > maxEvents) break;
+
+    ProMCStat stat = epbook->getStatistics();
+    xcross = xcross + stat.cross_section_accumulated(); 
+    nlumi=nlumi+stat.luminosity_accumulated(); // lumi 
+    epbook->close();  // close
+    nfiles++;
+  }  // end loop over all files
+
+  xcross = xcross / (double)nfiles;  // average cross-section for all files
+  cout << "Total files=" << nfiles << endl;
+  cout << "Total events proccessed =" << ntot << endl;
+  // extract number of events before filters
+  int Ntot=(int)(nlumi*xcross); 
+
+  cout << "Total events generated before filters =" << Ntot << endl;
+  cout << "Selected RMM events =" << event << endl;
+  cout << "Average cross section for all files = " << xcross << " pb" << endl;
+  // double width=h_pt->GetBinWidth(1);
+  double lumi = (double)Ntot / xcross;
+  cout << "Lumi for all files  =" << lumi << " pb-1" << endl;
+  h_cross->Fill("Cross section [pb]", (double)xcross);  // 1
+  h_cross->Fill("Nr of events tried at generator",(double)Ntot); // 2 
+  h_cross->Fill("Nr processed events",(double)ntot); // 3 
+  h_cross->Fill("Nr selected events",(double)NN); // 4 
+  h_cross->Fill("Lumi [pb-1]", (double)lumi);  // 5 
+  h_cross->Fill("Nr of input files",(double)nfiles); // 6 
+  RootFile->Write();
+  RootFile->Print();
+  RootFile->Close();
+
+  cout << "Writing ROOT file " << argv[2] << endl;
+
+  return 0;
+}

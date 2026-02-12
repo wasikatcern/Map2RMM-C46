@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+CURRENT_DIR=`pwd`
+
+source ./msetup.sh
+XDIR="/users/chekanov/hepsim/events/pp/13.6tev/pythia8_ttbar_2lep/"
+#XDIR=/home/chekanov/work/SMFitter/theory/pythia8/package/out/
+
+rm -f ana
+make -f Makefile
+export LD_LIBRARY_PATH=./lib/src/:$LD_LIBRARY_PATH
+echo "STORAGE=$STORAGE"
+
+TRIG=30
+
+rm -f  data.in
+Make_input $XDIR/
+
+#tail -2 data.in > a
+#mv a data.in
+
+./ana data.in out/tev13.6pp_pythia8_ttbar_2lep.root $TRIG 
